@@ -1,10 +1,9 @@
-# IELTS Vocab Deck Builder
+# Vocab Deck Builder
 
-Genera tarjetas de vocabulario para IELTS Writing Task 2 con un LLM local
+Genera tarjetas de vocabulario para con un LLM local
 (Ollama), con memoria de duplicados, tarjetas cloze con opciones, y una
 mini app web para capturar palabras desde texto, URL o PDF.
 
-100% gratis y open-source: no requiere API keys de pago ni cuentas.
 
 ## Componentes
 
