@@ -1,129 +1,165 @@
 # Vocab Deck Builder
 
-Genera tarjetas de vocabulario para con un LLM local
-(Ollama), con memoria de duplicados, tarjetas cloze con opciones, y una
-mini app web para capturar palabras desde texto, URL o PDF.
+Generate vocabulary flashcards using a local LLM powered by [Ollama](https://ollama.com). Build personalized vocabulary decks with duplicate detection, native Anki cloze cards, editable prompts, and a lightweight web interface for extracting vocabulary from text, URLs, and PDFs.
 
+## Features
 
-## Componentes
+- **LLM-powered flashcards:** Generate definitions, multiple senses, and example sentences using a locally running language model.
+- **Duplicate detection:** Identify existing vocabulary through exact matching, lemmatization, and fuzzy string matching.
+- **Cloze exercises:** Generate two fill-in-the-blank exercises per basic card, with 3–4 answer options.
+- **Multiple word senses:** Distinguish common meanings of polysemous words and provide separate definitions and examples for each sense.
+- **Multiple input sources:** Extract vocabulary from word lists, pasted text, web articles, and PDF documents.
+- **Anki export:** Export complete decks as `.apkg` files using Anki's native Cloze note type, or as `.tsv` and `.json`.
+- **Editable prompts:** Customize the prompts used for flashcard generation, cloze exercises, and vocabulary extraction without modifying the source code.
+- **Deck management:** Browse generated cards, preview their contents, and delete individual entries from the vocabulary database.
 
-| Archivo | Qué hace |
+## Project Structure
+
+| File | Description |
 |---|---|
-| `models.py` | Esquemas Pydantic: tarjeta básica, tarjeta cloze, resultado de generación |
-| `memory.py` | Memoria persistente en SQLite. Detecta duplicados por **lema** (conjugaciones/plurales) con `simplemma`, y por **similitud difusa** con `rapidfuzz` para variantes que el lematizador no atrapa |
-| `generator.py` | Llama a Ollama en lotes; pasa el vocabulario ya existente como "pool" para que las distracciones del cloze salgan del mismo mazo |
-| `extract.py` | Extrae texto de PDF (`pypdf`) o URL (`trafilatura`), y usa el LLM para minar términos candidatos de ese texto |
-| `export.py` | Exporta a `.apkg` real de Anki (con `genanki`, tipo de nota Cloze nativo de Anki), además de `.tsv` y `.json` |
-| `api.py` | Backend FastAPI que expone todo lo anterior como endpoints HTTP |
-| `app_streamlit.py` | Interfaz web ligera (Streamlit) sobre el backend: pegar lista de palabras, pegar texto, pegar URL, subir PDF, ver el mazo y descargar |
+| `models.py` | Pydantic schemas for basic cards, cloze cards, and generation results. |
+| `memory.py` | Persistent SQLite storage and duplicate detection using `simplemma` and `rapidfuzz`. |
+| `generator.py` | Generates flashcards in batches through Ollama and provides existing vocabulary as context for cloze distractors. |
+| `extract.py` | Extracts text from PDFs and URLs, then uses the LLM to identify candidate vocabulary. |
+| `export.py` | Exports decks to Anki `.apkg`, `.tsv`, and `.json` formats. |
+| `api.py` | FastAPI backend exposing the application functionality through HTTP endpoints. |
+| `app_streamlit.py` | Streamlit web interface for generating, browsing, and exporting vocabulary decks. |
+| `prompts_store.py` | Manages editable prompts and their default values. |
+| `prompts.json` | Stores customized prompts. Created automatically when needed. |
+| `vocab_memory.db` | SQLite database containing generated vocabulary and associated card data. |
 
-## Instalación
+## Requirements
+
+- Python 3.10 or later.
+- [Ollama](https://ollama.com) installed and running.
+- A language model available locally through Ollama.
+
+Install the Python dependencies:
 
 ```bash
 pip install -r requirements.txt
+```
 
-# Instala Ollama (gratis, local): https://ollama.com
+Download the default model:
+
+```bash
 ollama pull llama3.1:8b
 ```
 
-## Uso
+You can use another compatible model by changing the model configuration in the application.
 
-Terminal 1 — backend:
+## Getting Started
+
+### 1. Start the API backend
+
+From the project directory, run:
+
 ```bash
 python3 -m uvicorn api:app --reload --port 8000
 ```
 
-Terminal 2 — interfaz web:
+The API will be available at `http://localhost:8000`.
+
+### 2. Start the web interface
+
+Open a second terminal in the project directory and run:
+
 ```bash
 python3 -m streamlit run app_streamlit.py
 ```
 
-Abre `http://localhost:8501`. Tienes 4 formas de capturar vocabulario:
+Open `http://localhost:8501` in your browser.
 
-1. **Lista de palabras** — pega una palabra o colocación por línea.
-2. **Pegar texto** — pega un párrafo/artículo y el LLM extrae el vocabulario avanzado.
-3. **Desde URL** — pega el link de un artículo; se descarga y limpia el texto automáticamente (`trafilatura`).
-4. **Desde PDF** — sube un PDF (paper, capítulo, etc).
+Make sure Ollama is running and the selected model is available before generating cards.
 
-En la pestaña **"My deck"** puedes ver todo lo generado hasta ahora y
-descargar el mazo completo como `.apkg` (listo para importar en Anki),
-`.tsv` o `.json`.
+## Usage
 
-## Cómo funciona la memoria (punto 1 de tu pedido)
+### Add vocabulary
 
-Cada término que se convierte en tarjeta se guarda en `vocab_memory.db`
-(SQLite, un solo archivo, no requiere servidor). Antes de generar una
-tarjeta nueva:
+The application supports four input methods:
 
-1. Se compara el término exacto (case-insensitive).
-2. Se lematiza palabra por palabra (`simplemma`, sin descargas, 100%
-   local) y se compara el "lema" resultante — así "mitigating",
-   "mitigated" y "mitigate" se reconocen como el mismo término.
-3. Si nada de lo anterior coincide, se hace una comparación difusa
-   (`rapidfuzz`) para atrapar variantes que el lematizador no cubre
-   (errores tipográficos, variantes de ortografía, etc).
+1. **Word list:** Paste words or phrases, one per line.
+2. **Text:** Paste a paragraph or article and let the LLM extract advanced vocabulary.
+3. **URL:** Provide an article URL. The application downloads and extracts its text using `trafilatura`.
+4. **PDF:** Upload a document, such as a research paper or book chapter, and extract vocabulary from its contents.
 
-Los duplicados detectados se reportan (con el término contra el que
-hicieron match y el motivo) en vez de generarse de nuevo.
+### Browse and manage your deck
 
-## Cloze cards (punto 2)
+Open the **My Deck** tab to browse generated vocabulary, preview definitions and examples, review cloze exercises, and export the complete deck.
 
-Cada tarjeta básica viene con 2 ejercicios cloze (`{{c1::palabra}}` en
-el `.apkg`, usando el **tipo de nota Cloze nativo de Anki**). Cada
-ejercicio incluye 3-4 opciones de respuesta; el modelo prioriza sacar
-las opciones incorrectas del mismo mazo de vocabulario que ya
-construiste (se le pasa como contexto en el prompt), en vez de inventar
-palabras sueltas.
+Supported export formats:
 
-La generación de la tarjeta básica y del cloze son **dos llamadas
-separadas** al modelo. Así, si el cloze falla (el modelo local a veces
-no devuelve el JSON exacto que se le pide), la tarjeta básica no se
-pierde — se guarda igual, solo sin cloze, y el error real se reporta
-en la interfaz (nunca se confunde con "duplicado").
+- `.apkg` — Anki package ready to import.
+- `.tsv` — Tab-separated text.
+- `.json` — Structured vocabulary data.
 
-## Sentidos múltiples (palabras como "make up")
+You can also delete individual vocabulary entries. Deletion removes the associated database record, including its definitions, senses, examples, and cloze exercises. The term can then be generated again in a future request.
 
-El prompt por defecto le pide al modelo distinguir entre:
-- Palabras con **un solo sentido común** → una sola definición + 5 ejemplos.
-- Palabras genuinamente **polisémicas y comunes** (como "make up":
-  inventar una historia / maquillarse / constituir un todo /
-  reconciliarse) → una tarjeta con varios "sentidos" (`senses`), cada
-  uno con su propia etiqueta corta, definición y ejemplos.
+## Duplicate Detection
 
-El propio prompt le pide al modelo usar criterio: si un posible
-significado es raro, arcaico o muy técnico/nicho, **no** debe separarse
-en su propio sentido — solo se agregan sentidos cuando de verdad son de
-uso común. Puedes editar este criterio libremente en la pestaña
-**Prompts** de la interfaz.
+Vocabulary entries are stored in `vocab_memory.db`, a local SQLite database that requires no separate database server.
 
-## Borrar una palabra (punto nuevo)
+Before generating a new card, the application checks for duplicates in three stages:
 
-En la pestaña **"My deck"** puedes elegir cualquier término ya
-generado, ver una vista previa de todo lo que se creó para él
-(definición/sentidos, ejemplos, cloze) y borrarlo por completo con un
-clic (con checkbox de confirmación). Al borrarlo:
-- Se elimina la fila completa de `vocab_memory.db` (definición, sentidos,
-  ejemplos y cloze — todo vive junto en un solo registro).
-- El término queda libre para volver a generarse desde cero la próxima
-  vez que lo pidas, ya que deja de estar en la memoria de duplicados.
+1. **Exact matching:** Compares terms without distinguishing between uppercase and lowercase letters.
+2. **Lemmatization:** Uses `simplemma` to compare normalized word forms. For example, *mitigate*, *mitigated*, and *mitigating* can be recognized as forms of the same lemma.
+3. **Fuzzy matching:** Uses `rapidfuzz` to detect spelling variations, typos, and similar forms that lemmatization may not catch.
 
-## Prompts editables (punto nuevo)
+Detected duplicates are reported with the matching term and the reason for the match instead of being generated again.
 
-Nueva pestaña **"Prompts"** en la interfaz: puedes editar en caliente
-los tres prompts del sistema (tarjeta básica, cloze, extracción de
-términos desde texto/URL/PDF), guardarlos, o resetear cada uno a su
-valor por defecto. Se guardan en `prompts.json` (se crea solo la
-primera vez que corres el backend) — no hace falta tocar código.
-Los cambios aplican a la **siguiente** generación; no regeneran
-tarjetas ya creadas.
+The fuzzy matching threshold is configurable through `FUZZY_THRESHOLD` in `memory.py`. Its default value is `88`. Lower values make matching more permissive, potentially increasing false positives.
 
-## Notas / próximos pasos posibles
+## Cloze Cards
 
-- El extractor de términos (`extract.py`) usa el mismo modelo de
-  Ollama que el generador; puedes usar un modelo más chico ahí si
-  quieres respuestas más rápidas.
-- `FUZZY_THRESHOLD` en `memory.py` (default 88) controla qué tan
-  estricta es la detección de duplicados — bájalo si quieres que
-  atrape más variantes (a costa de más falsos positivos).
-- Para producción real (multiusuario) cambiarías SQLite por Postgres,
-  pero para uso personal esto es intencionalmente cero-configuración.
+Each basic vocabulary card can include two cloze exercises using Anki's native Cloze note type.
+
+For example:
+
+```text
+The new policy helped {{c1::mitigate}} the problem.
+```
+
+Each exercise includes 3–4 answer options. Whenever possible, incorrect options are selected from the vocabulary already stored in the deck, helping create more consistent and useful practice.
+
+Basic card generation and cloze generation use separate LLM calls. If cloze generation fails, the basic card is still saved without its cloze exercises, and the actual error is reported in the interface rather than being treated as a duplicate.
+
+## Multiple Word Senses
+
+The default prompt instructs the model to distinguish between words with one common meaning and genuinely polysemous words.
+
+For example, *make up* can mean:
+
+- To invent a story.
+- To apply cosmetics.
+- To constitute or form something.
+- To reconcile after an argument.
+
+When a word has multiple common meanings, the application can store them as separate senses, each with its own short label, definition, and example sentences.
+
+Rare, archaic, or highly specialized meanings should not automatically become separate senses. This behavior can be customized through the **Prompts** tab.
+
+## Editable Prompts
+
+The **Prompts** tab lets you modify the three main prompts used by the application:
+
+- Basic flashcard generation.
+- Cloze exercise generation.
+- Vocabulary extraction from text, URLs, and PDFs.
+
+You can save custom prompts or restore each prompt to its default value.
+
+Prompt configurations are stored in `prompts.json` and are created automatically when needed. Changes apply to subsequent generation requests and do not regenerate existing cards.
+
+## Configuration and Customization
+
+A few useful settings can be adjusted to tailor the application to your workflow:
+
+- **LLM model:** Change the Ollama model used for vocabulary generation and extraction.
+- **Fuzzy matching:** Adjust `FUZZY_THRESHOLD` in `memory.py` to control duplicate detection sensitivity.
+- **Generation prompts:** Customize the card format, definitions, examples, senses, and cloze behavior through the web interface.
+- **Storage:** The application uses SQLite for persistent local storage without requiring a separate database server.
+
+
+## License
+
+`MIT License`
